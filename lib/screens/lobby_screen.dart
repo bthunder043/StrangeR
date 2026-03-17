@@ -78,38 +78,50 @@ class _LobbyScreenState extends State<LobbyScreen> {
       ),
 
       body: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
+        child: searching
+            ? Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  CircularProgressIndicator(color: Color(0xff6c63ff)),
+                  SizedBox(height: 20),
 
-          children: [
-            Icon(Icons.chat, size: 80, color: Colors.white),
+                  Text(
+                    "Searching for a stranger...",
+                    style: TextStyle(fontSize: 18, color: Colors.white),
+                  ),
+                ],
+              )
+            : Column(
+                mainAxisAlignment: MainAxisAlignment.center,
 
-            SizedBox(height: 20),
+                children: [
+                  Icon(Icons.chat, size: 80, color: Colors.white),
 
-            Text(
-              "Start talking to a stranger",
-              style: TextStyle(fontSize: 22, color: Colors.white),
-            ),
+                  SizedBox(height: 20),
 
-            SizedBox(height: 40),
+                  Text(
+                    "Start talking to a stranger",
+                    style: TextStyle(fontSize: 22, color: Colors.white),
+                  ),
 
-            ElevatedButton(
-              onPressed: () async {
-                await startMatching(context);
-                startChat();
-                print("Matching has started");
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Color(0xff6c63ff),
-                padding: EdgeInsets.symmetric(horizontal: 40, vertical: 16),
+                  SizedBox(height: 40),
+
+                  ElevatedButton(
+                    onPressed: startChat,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Color(0xff6c63ff),
+                      padding: EdgeInsets.symmetric(
+                        horizontal: 40,
+                        vertical: 16,
+                      ),
+                    ),
+                    child: Text(
+                      "Start chat",
+                      style: TextStyle(fontSize: 18, color: Colors.white),
+                    ),
+                  ),
+                ],
               ),
-              child: Text(
-                "Start chat",
-                style: TextStyle(fontSize: 18, color: Colors.white),
-              ),
-            ),
-          ],
-        ),
       ),
     );
   }
