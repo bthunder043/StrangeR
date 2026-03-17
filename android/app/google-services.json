@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "50743563599",
+    "project_id": "stranger-mtf",
+    "storage_bucket": "stranger-mtf.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:50743563599:android:44b41d773091827d15e13a",
+        "android_client_info": {
+          "package_name": "com.example.stranger"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCieg9Ss6-9MPZtpJ18qjEun0zUD36aeGM"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
