@@ -36,16 +36,20 @@ class _ChatScreenState extends State<ChatScreen> {
     final uid = FirebaseAuth.instance.currentUser!.uid;
 
     return Scaffold(
-      appBar: AppBar(title: const Text("Stranger")),
+      backgroundColor: Color(0xff121212),
+      appBar: AppBar(
+        backgroundColor: Color(0xff121212),
+        title: const Text("Stranger"),
+      ),
       body: Column(
         children: [
           Expanded(
-            child: StreamBuilder(
+            child: StreamBuilder<QuerySnapshot>(
               stream: FirebaseFirestore.instance
                   .collection("chat_rooms")
                   .doc(widget.roomId)
                   .collection("messages")
-                  .orderBy("timestamp")
+                  .orderBy("createdAt", descending: false)
                   .snapshots(),
 
               builder: (context, snapshot) {
@@ -56,6 +60,7 @@ class _ChatScreenState extends State<ChatScreen> {
                 final messages = snapshot.data!.docs;
 
                 return ListView.builder(
+                  padding: EdgeInsets.all(10),
                   itemCount: messages.length,
                   itemBuilder: (context, index) {
                     final msg = messages[index];
@@ -96,7 +101,7 @@ class _ChatScreenState extends State<ChatScreen> {
                   ),
                 ),
 
-                IconButton(onPressed: sendMessage, icon: Icon(Icons.send))
+                IconButton(onPressed: sendMessage, icon: Icon(Icons.send)),
               ],
             ),
           ),

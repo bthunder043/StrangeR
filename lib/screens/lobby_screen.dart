@@ -1,4 +1,4 @@
-// ignore_for_file: use_build_context_synchronously
+// ignore_for_file: avoid_print, use_build_context_synchronously
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -15,23 +15,27 @@ class LobbyScreen extends StatefulWidget {
 
 class _LobbyScreenState extends State<LobbyScreen> {
   bool searching = false;
-
-  @override
-  void initState() {
-    super.initState();
-    listenForMatch();
-  }
+  bool hasNavigated = false;
 
   void listenForMatch() {
     final uid = FirebaseAuth.instance.currentUser!.uid;
+
+    print("Listening for match for UID: $uid");
 
     FirebaseFirestore.instance
         .collection("chat_rooms")
         .where("users", arrayContains: uid)
         .snapshots()
-        .listen((snapshot) {
-          if (snapshot.docs.isNotEmpty) {
+        .listen((snapshot) async {
+          print("Chat room snapshot received: ${snapshot.docs.length}");
+
+          if (snapshot.docs.isNotEmpty && !hasNavigated) {
+            hasNavigated = true;
             final roomId = snapshot.docs.first.id;
+
+            print("navigating to chat room: $roomId");
+
+            await Future.delayed(Duration(milliseconds: 500));
 
             Navigator.push(
               context,
@@ -45,6 +49,8 @@ class _LobbyScreenState extends State<LobbyScreen> {
     setState(() {
       searching = true;
     });
+
+    listenForMatch();
 
     await startMatching(context);
   }
