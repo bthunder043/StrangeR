@@ -25,6 +25,7 @@ class _LobbyScreenState extends State<LobbyScreen> {
     FirebaseFirestore.instance
         .collection("chat_rooms")
         .where("users", arrayContains: uid)
+        .orderBy("createdAt", descending: true)
         .snapshots()
         .listen((snapshot) async {
           print("Chat room snapshot received: ${snapshot.docs.length}");

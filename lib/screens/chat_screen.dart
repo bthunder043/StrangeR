@@ -1,3 +1,5 @@
+// ignore_for_file: avoid_print
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
@@ -25,7 +27,7 @@ class _ChatScreenState extends State<ChatScreen> {
         .add({
           "text": text,
           "sender": user.uid,
-          "timestamp": FieldValue.serverTimestamp(),
+          "createdAt": FieldValue.serverTimestamp(),
         });
 
     messageController.clear();
@@ -53,11 +55,22 @@ class _ChatScreenState extends State<ChatScreen> {
                   .snapshots(),
 
               builder: (context, snapshot) {
+                print("snapshot error: ${snapshot.error}");
+                print("docs length: ${snapshot.data?.docs.length}");
+                if (snapshot.hasError) {
+                  return Center(
+                    child: Text(
+                      "Error: ${snapshot.error}",
+                      style: TextStyle(color: Colors.white),
+                    ),
+                  );
+                }
                 if (!snapshot.hasData) {
                   return Center(child: CircularProgressIndicator());
                 }
 
                 final messages = snapshot.data!.docs;
+
 
                 return ListView.builder(
                   padding: EdgeInsets.all(10),
@@ -70,16 +83,21 @@ class _ChatScreenState extends State<ChatScreen> {
                       alignment: isMe
                           ? Alignment.centerRight
                           : Alignment.centerLeft,
-                      padding: EdgeInsets.all(10),
-                      child: Container(
-                        padding: EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: isMe ? Color(0xff377771) : Color(0xffaf6565),
-                          borderRadius: BorderRadius.circular(10),
+                      margin: EdgeInsets.symmetric(vertical:4, horizontal: 8),
+                      child: ConstrainedBox(
+                        constraints: BoxConstraints(
+                          maxWidth: MediaQuery.of(context).size.width * 0.7,
                         ),
-                        child: Text(
-                          msg["text"],
-                          style: TextStyle(color: Colors.white),
+                        child: Container(
+                          padding: EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: isMe ? Color(0xff636cff) : Color(0xff2a2a40),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: Text(
+                            msg["text"],
+                            style: TextStyle(color: Colors.white),
+                          ),
                         ),
                       ),
                     );
@@ -95,13 +113,29 @@ class _ChatScreenState extends State<ChatScreen> {
             child: Row(
               children: [
                 Expanded(
-                  child: TextField(
-                    controller: messageController,
-                    decoration: InputDecoration(hintText: "Type a message..."),
+                  child: Container(
+                    padding: EdgeInsets.symmetric(horizontal: 12),
+                    decoration: BoxDecoration(
+                      color: Color(0xff1e1e1e),
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: TextField(
+                      style: TextStyle(color: Colors.white),
+                      controller: messageController,
+                      decoration: InputDecoration(
+                        hintText: "Type a message...",
+                        hintStyle: TextStyle(color: Colors.grey),
+                        border: InputBorder.none,
+                      ),
+                    ),
                   ),
                 ),
 
-                IconButton(onPressed: sendMessage, icon: Icon(Icons.send)),
+                IconButton(
+                  onPressed: sendMessage,
+                  icon: Icon(Icons.send),
+                  color: Color(0xff6c63ff),
+                ),
               ],
             ),
           ),
