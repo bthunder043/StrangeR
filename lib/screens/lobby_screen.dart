@@ -1,5 +1,7 @@
 // ignore_for_file: avoid_print, use_build_context_synchronously
 
+import 'dart:async';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
@@ -16,44 +18,68 @@ class LobbyScreen extends StatefulWidget {
 class _LobbyScreenState extends State<LobbyScreen> {
   bool searching = false;
   bool hasNavigated = false;
+  StreamSubscription<QuerySnapshot>? matchSubscription;
 
   void listenForMatch() {
     final uid = FirebaseAuth.instance.currentUser!.uid;
 
     print("Listening for match for UID: $uid");
 
-    FirebaseFirestore.instance
+    matchSubscription?.cancel();
+
+    matchSubscription = FirebaseFirestore.instance
         .collection("chat_rooms")
+        .where("isActive", isEqualTo: true)
         .where("users", arrayContains: uid)
         .orderBy("createdAt", descending: true)
         .snapshots()
-        .listen((snapshot) async {
-          print("Chat room snapshot received: ${snapshot.docs.length}");
+        .listen(
+          (snapshot) async {
+            print("Chat room snapshot received: ${snapshot.docs.length}");
 
-          if (snapshot.docs.isNotEmpty && !hasNavigated) {
-            hasNavigated = true;
-            final roomId = snapshot.docs.first.id;
+            if (snapshot.docs.isNotEmpty && !hasNavigated) {
+              hasNavigated = true;
+              final roomId = snapshot.docs.first.id;
 
-            print("navigating to chat room: $roomId");
+              print("navigating to chat room: $roomId");
 
-            await Future.delayed(Duration(milliseconds: 500));
+              await Future.delayed(const Duration(milliseconds: 500));
 
-            Navigator.push(
-              context,
-              MaterialPageRoute(builder: (_) => ChatScreen(roomId: roomId)),
-            );
-          }
-        });
+              if (!mounted) return;
+
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => ChatScreen(roomId: roomId)),
+              ).then((_) {
+                hasNavigated = false;
+                if (mounted) {
+                  setState(() {
+                    searching = false;
+                  });
+                }
+              });
+            }
+          },
+          onError: (error) {
+            print("listenForMatch error: $error");
+          },
+        );
   }
 
   void startChat() async {
     setState(() {
       searching = true;
+      hasNavigated = false;
     });
 
     listenForMatch();
-
     await startMatching(context);
+  }
+
+  @override
+  void dispose() {
+    super.dispose();
+    matchSubscription?.cancel();
   }
 
   @override

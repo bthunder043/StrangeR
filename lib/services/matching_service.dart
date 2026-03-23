@@ -12,6 +12,17 @@ Future<void> startMatching(BuildContext context) async {
 
   print("MY UID: $uid");
 
+  //deactivating old rooms
+  final oldRooms = await FirebaseFirestore.instance
+      .collection("chat_rooms")
+      .where("users", arrayContains: uid)
+      .where("isActive", isEqualTo: true)
+      .get();
+
+  for (final room in oldRooms.docs) {
+    await room.reference.update({"isActive": false});
+  }
+
   final waitingSnapshot = await FirebaseFirestore.instance
       .collection("waiting_users")
       .get();
@@ -28,8 +39,9 @@ Future<void> startMatching(BuildContext context) async {
     final room = await FirebaseFirestore.instance.collection("chat_rooms").add({
       "users": [uid, strangerId],
       "createdAt": FieldValue.serverTimestamp(),
+      "isActive": true,
     });
-    print("Created room with ID: $room.id");
+    print("Created room with ID: ${room.id}");
 
     await FirebaseFirestore.instance
         .collection("waiting_users")
