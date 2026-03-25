@@ -2,9 +2,8 @@
 
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:flutter/material.dart';
 
-Future<void> startMatching(BuildContext context) async {
+Future<void> startMatching() async {
   final user = FirebaseAuth.instance.currentUser;
   if (user == null) return;
 
@@ -25,6 +24,7 @@ Future<void> startMatching(BuildContext context) async {
 
   final waitingSnapshot = await FirebaseFirestore.instance
       .collection("waiting_users")
+      .orderBy("joinedAt")
       .get();
 
   final availableUsers = waitingSnapshot.docs
@@ -38,20 +38,23 @@ Future<void> startMatching(BuildContext context) async {
 
     final room = await FirebaseFirestore.instance.collection("chat_rooms").add({
       "users": [uid, strangerId],
-      "createdAt": FieldValue.serverTimestamp(),
+      "createdAt": Timestamp.now(),
       "isActive": true,
+      "disconnectedBy": null,
     });
     print("Created room with ID: ${room.id}");
 
     await FirebaseFirestore.instance
         .collection("waiting_users")
         .doc(strangerId)
-        .delete();
+        .delete()
+        .catchError((_) {});
 
     await FirebaseFirestore.instance
         .collection("waiting_users")
         .doc(uid)
-        .delete();
+        .delete()
+        .catchError((_) {});
   } else {
     print("No match, adding user to waiting list");
 
@@ -59,4 +62,25 @@ Future<void> startMatching(BuildContext context) async {
       "joinedAt": FieldValue.serverTimestamp(),
     });
   }
+}
+
+Future<void> leaveRoom(String roomId) async {
+  final user = FirebaseAuth.instance.currentUser;
+  if (user == null) return;
+
+  await FirebaseFirestore.instance.collection("chat_rooms").doc(roomId).update({
+    "isActive": false,
+    "disconnectedBy": user.uid,
+  });
+}
+
+Future<void> cancelWaiting() async {
+  final user = FirebaseAuth.instance.currentUser;
+  if (user == null) return;
+
+  await FirebaseFirestore.instance
+      .collection("waiting_users")
+      .doc(user.uid)
+      .delete()
+      .catchError((_) {});
 }

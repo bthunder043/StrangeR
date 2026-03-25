@@ -1,11 +1,10 @@
 // ignore_for_file: avoid_print, use_build_context_synchronously
 
 import 'dart:async';
-
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
-import '../services//matching_service.dart';
+import '../services/matching_service.dart';
 import 'chat_screen.dart';
 
 class LobbyScreen extends StatefulWidget {
@@ -37,7 +36,9 @@ class _LobbyScreenState extends State<LobbyScreen> {
           (snapshot) async {
             print("Chat room snapshot received: ${snapshot.docs.length}");
 
-            if (snapshot.docs.isNotEmpty && !hasNavigated) {
+            if (!mounted) return;
+
+            if (snapshot.docs.isNotEmpty && !hasNavigated && searching) {
               hasNavigated = true;
               final roomId = snapshot.docs.first.id;
 
@@ -47,17 +48,20 @@ class _LobbyScreenState extends State<LobbyScreen> {
 
               if (!mounted) return;
 
-              Navigator.push(
+              final result = await Navigator.push(
                 context,
                 MaterialPageRoute(builder: (_) => ChatScreen(roomId: roomId)),
-              ).then((_) {
-                hasNavigated = false;
-                if (mounted) {
-                  setState(() {
-                    searching = false;
-                  });
-                }
-              });
+              );
+              hasNavigated = false;
+              if (!mounted) return;
+
+              if (result == "rematch") {
+                startChat();
+              } else {
+                setState(() {
+                  searching = false;
+                });
+              }
             }
           },
           onError: (error) {
@@ -66,14 +70,28 @@ class _LobbyScreenState extends State<LobbyScreen> {
         );
   }
 
-  void startChat() async {
+  Future<void> startChat() async {
     setState(() {
       searching = true;
       hasNavigated = false;
     });
 
     listenForMatch();
-    await startMatching(context);
+    await Future.delayed(Duration(milliseconds: 300));
+    await startMatching();
+  }
+
+  Future<void> cancelSearch() async {
+    await cancelWaiting();
+
+    await matchSubscription?.cancel();
+
+    if (!mounted) return;
+
+    setState(() {
+      searching = false;
+      hasNavigated = false;
+    });
   }
 
   @override

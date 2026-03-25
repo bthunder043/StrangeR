@@ -123,7 +123,7 @@ class _NicknameSetupState extends State<NicknameSetup> {
                 width: double.infinity,
                 child: ElevatedButton(
                   onPressed: () async {
-                    if (nicknameController.text.isEmpty) {
+                    if (nicknameController.text.trim().isEmpty) {
                       ScaffoldMessenger.of(context).showSnackBar(
                         SnackBar(content: Text("Please enter a nickname")),
                       );
@@ -131,7 +131,7 @@ class _NicknameSetupState extends State<NicknameSetup> {
                     }
                     await saveUserProfile();
                     if (!context.mounted) return;
-                    Navigator.push(
+                    Navigator.pushReplacement(
                       context,
                       MaterialPageRoute(builder: (context) => LobbyScreen()),
                     );

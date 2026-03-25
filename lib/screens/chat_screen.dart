@@ -1,11 +1,9 @@
 // ignore_for_file: avoid_print
 
 import 'dart:async';
-
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
-import 'package:stranger/screens/lobby_screen.dart';
 
 class ChatScreen extends StatefulWidget {
   final String roomId;
@@ -18,49 +16,105 @@ class ChatScreen extends StatefulWidget {
 class _ChatScreenState extends State<ChatScreen> {
   final TextEditingController messageController = TextEditingController();
   final ScrollController scrollController = ScrollController();
+  String strangerNickname = "Stranger";
 
   StreamSubscription<DocumentSnapshot>? roomSubscription;
   bool leavingChat = false;
+  bool strangerDisconnected = false;
 
   @override
   void initState() {
     super.initState();
-    listentoRoomStatus();
+    listenToRoomStatus();
+    loadStrangerNickname();
   }
 
-  void listentoRoomStatus() {
+  Future<void> loadStrangerNickname() async {
+    final currentUid = FirebaseAuth.instance.currentUser!.uid;
+
+    final roomDoc = await FirebaseFirestore.instance
+        .collection("chat_rooms")
+        .doc(widget.roomId)
+        .get();
+
+    if (!roomDoc.exists) return;
+
+    final roomData = roomDoc.data();
+    if (roomData == null) return;
+
+    final users = List<String>.from(roomData["users"] ?? []);
+
+    final strangerId = users.firstWhere(
+      (id) => id != currentUid,
+      orElse: () => "",
+    );
+
+    if (strangerId.isEmpty) return;
+
+    final strangerDoc = await FirebaseFirestore.instance
+        .collection("users")
+        .doc(strangerId)
+        .get();
+
+    if (!strangerDoc.exists) return;
+
+    final strangerData = strangerDoc.data();
+    if (strangerData == null) return;
+
+    if (!mounted) return;
+
+    setState(() {
+      strangerNickname = strangerData["nickname"] ?? "Stranger";
+    });
+  }
+
+  void listenToRoomStatus() {
+    final uid = FirebaseAuth.instance.currentUser!.uid;
+
     roomSubscription = FirebaseFirestore.instance
         .collection("chat_rooms")
         .doc(widget.roomId)
         .snapshots()
         .listen((doc) {
           if (!doc.exists) {
-            leavetoLobby();
+            if (!leavingChat && mounted) {
+              setState(() {
+                strangerDisconnected = true;
+              });
+            }
             return;
           }
           final data = doc.data();
           if (data == null) return;
 
-          if (data["isActive"] == false) {
-            leavetoLobby();
+          final isActive = data["isActive"] ?? true;
+          final disconnectedBy = data["disconnectedBy"];
+
+          if (!isActive) {
+            if (disconnectedBy == uid) {
+              leavetoLobby();
+            } else {
+              if (mounted) {
+                setState(() {
+                  strangerDisconnected = true;
+                });
+              }
+            }
           }
         });
   }
 
-  Future<void> leavetoLobby() async {
+  Future<void> leavetoLobby({bool rematch = false}) async {
     if (leavingChat) return;
     leavingChat = true;
 
     if (!mounted) return;
 
-    Navigator.pushAndRemoveUntil(
-      context,
-      MaterialPageRoute(builder: (_) => LobbyScreen()),
-      (route) => false,
-    );
+    Navigator.pop(context, rematch ? "rematch" : null);
   }
 
   Future<void> sendMessage() async {
+    if (strangerDisconnected) return;
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
     final text = messageController.text.trim();
@@ -82,11 +136,14 @@ class _ChatScreenState extends State<ChatScreen> {
   Future<void> skipStranger() async {
     if (leavingChat) return;
 
+    final uid = FirebaseAuth.instance.currentUser!.uid;
+    leavingChat = true;
+
     await FirebaseFirestore.instance
         .collection("chat_rooms")
         .doc(widget.roomId)
-        .update({"isActive": false});
-    await leavetoLobby();
+        .update({"isActive": false, "disconnectedBy": uid});
+    await leavetoLobby(rematch: true);
   }
 
   @override
@@ -105,13 +162,41 @@ class _ChatScreenState extends State<ChatScreen> {
       backgroundColor: Color(0xff121212),
       appBar: AppBar(
         backgroundColor: Color(0xff121212),
-        title: const Text("StrangeR"),
+        title: Text(strangerNickname, style: TextStyle(color: Colors.white)),
         actions: [
           IconButton(onPressed: skipStranger, icon: Icon(Icons.skip_next)),
         ],
       ),
       body: Column(
         children: [
+          if (strangerDisconnected)
+            Container(
+              width: double.infinity,
+              padding: EdgeInsets.all(12),
+              margin: EdgeInsets.fromLTRB(12, 12, 12, 0),
+              decoration: BoxDecoration(
+                color: Colors.red.withValues(alpha: 0.15),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.red.withValues(alpha: 0.4)),
+              ),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      "Stranger disconnected!",
+                      style: TextStyle(color: Colors.white),
+                    ),
+                  ),
+                  TextButton(
+                    onPressed: () => leavetoLobby(rematch: true),
+                    child: Text(
+                      "Find another",
+                      style: TextStyle(color: Color(0xff6c63ff)),
+                    ),
+                  ),
+                ],
+              ),
+            ),
           Expanded(
             child: StreamBuilder<QuerySnapshot>(
               stream: FirebaseFirestore.instance
@@ -211,8 +296,11 @@ class _ChatScreenState extends State<ChatScreen> {
                     child: TextField(
                       style: TextStyle(color: Colors.white),
                       controller: messageController,
+                      enabled: !strangerDisconnected,
                       decoration: InputDecoration(
-                        hintText: "Type a message...",
+                        hintText: strangerDisconnected
+                            ? "Chat ended"
+                            : "Type a message...",
                         hintStyle: TextStyle(color: Colors.grey),
                         border: InputBorder.none,
                       ),
@@ -227,7 +315,7 @@ class _ChatScreenState extends State<ChatScreen> {
                     shape: BoxShape.circle,
                   ),
                   child: IconButton(
-                    onPressed: sendMessage,
+                    onPressed: strangerDisconnected ? null : sendMessage,
                     icon: Icon(Icons.send, color: Colors.white),
                   ),
                 ),
