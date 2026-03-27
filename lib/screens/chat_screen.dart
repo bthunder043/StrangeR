@@ -16,6 +16,8 @@ class ChatScreen extends StatefulWidget {
 class _ChatScreenState extends State<ChatScreen> {
   final TextEditingController messageController = TextEditingController();
   final ScrollController scrollController = ScrollController();
+
+  String? strangerId;
   String strangerNickname = "Stranger";
 
   StreamSubscription<DocumentSnapshot>? roomSubscription;
@@ -66,6 +68,44 @@ class _ChatScreenState extends State<ChatScreen> {
     setState(() {
       strangerNickname = strangerData["nickname"] ?? "Stranger";
     });
+  }
+
+  Future<void> blockUser() async {
+    print("block tapped");
+    print("strangerId: $strangerId");
+    print("strangerNickname: $strangerNickname");
+    final currentUid = FirebaseAuth.instance.currentUser!.uid;
+
+    if (strangerId == null || strangerId!.isEmpty) {
+      print("block failed: stranger is null or empty");
+      return;
+    }
+
+    print("Writing to: users/$currentUid/blocked_users/${strangerId!}");
+    try {
+      final ref = FirebaseFirestore.instance
+          .collection("users")
+          .doc(currentUid)
+          .collection("blocked_users")
+          .doc(strangerId);
+
+      await ref.set({
+        "uid": strangerId,
+        "nickname": strangerNickname,
+        "blockedAt": FieldValue.serverTimestamp(),
+      });
+
+      await FirebaseFirestore.instance
+          .collection("chat_rooms")
+          .doc(widget.roomId)
+          .update({"isActive": false, "disconnectedBy": currentUid});
+
+      if (!mounted) return;
+
+      Navigator.pop(context, "rematch");
+    } catch (e) {
+      print("Error blocking user: $e");
+    }
   }
 
   void listenToRoomStatus() {
@@ -165,6 +205,13 @@ class _ChatScreenState extends State<ChatScreen> {
         title: Text(strangerNickname, style: TextStyle(color: Colors.white)),
         actions: [
           IconButton(onPressed: skipStranger, icon: Icon(Icons.skip_next)),
+          IconButton(
+            onPressed: () {
+              print("BLOCK BUTTON PRESSED");
+              blockUser();
+            },
+            icon: const Icon(Icons.block, color: Colors.red),
+          ),
         ],
       ),
       body: Column(

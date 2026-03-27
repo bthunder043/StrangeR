@@ -4,6 +4,7 @@ import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:stranger/services/presence_service.dart';
 import '../services/matching_service.dart';
 import 'chat_screen.dart';
 
@@ -95,8 +96,15 @@ class _LobbyScreenState extends State<LobbyScreen> {
   }
 
   @override
+  void initState() {
+    super.initState();
+    PresenceService.setUserOnline();
+  }
+
+  @override
   void dispose() {
     super.dispose();
+    PresenceService.setUserOffline();
     matchSubscription?.cancel();
   }
 

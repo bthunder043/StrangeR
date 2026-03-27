@@ -27,8 +27,16 @@ Future<void> startMatching() async {
       .orderBy("joinedAt")
       .get();
 
+  final blockedSnapshot = await FirebaseFirestore.instance
+      .collection("users")
+      .doc(uid)
+      .collection("blocked_users")
+      .get();
+
+  final blockedUserIds = blockedSnapshot.docs.map((doc) => doc.id).toSet();
+
   final availableUsers = waitingSnapshot.docs
-      .where((doc) => doc.id != uid)
+      .where((doc) => doc.id != uid && !blockedUserIds.contains(doc.id))
       .toList();
 
   if (availableUsers.isNotEmpty) {
