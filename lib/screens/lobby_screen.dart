@@ -19,11 +19,10 @@ class _LobbyScreenState extends State<LobbyScreen> {
   bool searching = false;
   bool hasNavigated = false;
   StreamSubscription<QuerySnapshot>? matchSubscription;
+  Timer? retryTimer;
 
   void listenForMatch() {
     final uid = FirebaseAuth.instance.currentUser!.uid;
-
-    print("Listening for match for UID: $uid");
 
     matchSubscription?.cancel();
 
@@ -41,6 +40,7 @@ class _LobbyScreenState extends State<LobbyScreen> {
 
             if (snapshot.docs.isNotEmpty && !hasNavigated && searching) {
               hasNavigated = true;
+              retryTimer?.cancel();
               final roomId = snapshot.docs.first.id;
 
               print("navigating to chat room: $roomId");
@@ -72,19 +72,28 @@ class _LobbyScreenState extends State<LobbyScreen> {
   }
 
   Future<void> startChat() async {
+    if (searching) return;
+
     setState(() {
       searching = true;
       hasNavigated = false;
     });
 
     listenForMatch();
-    await Future.delayed(Duration(milliseconds: 300));
+    await startMatching();
+
+    retryTimer?.cancel();
+    retryTimer = Timer.periodic(Duration(milliseconds: 700), (_) async {
+      if (!mounted || !searching || hasNavigated) return;
+      retryTimer?.cancel();
+    });
+
     await startMatching();
   }
 
   Future<void> cancelSearch() async {
+    retryTimer?.cancel();
     await cancelWaiting();
-
     await matchSubscription?.cancel();
 
     if (!mounted) return;
@@ -106,6 +115,7 @@ class _LobbyScreenState extends State<LobbyScreen> {
     super.dispose();
     PresenceService.setUserOffline();
     matchSubscription?.cancel();
+    retryTimer?.cancel();
   }
 
   @override

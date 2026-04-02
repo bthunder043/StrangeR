@@ -11,17 +11,6 @@ Future<void> startMatching() async {
 
   print("MY UID: $uid");
 
-  //deactivating old rooms
-  final oldRooms = await FirebaseFirestore.instance
-      .collection("chat_rooms")
-      .where("users", arrayContains: uid)
-      .where("isActive", isEqualTo: true)
-      .get();
-
-  for (final room in oldRooms.docs) {
-    await room.reference.update({"isActive": false});
-  }
-
   final waitingSnapshot = await FirebaseFirestore.instance
       .collection("waiting_users")
       .orderBy("joinedAt")
@@ -35,9 +24,24 @@ Future<void> startMatching() async {
 
   final blockedUserIds = blockedSnapshot.docs.map((doc) => doc.id).toSet();
 
-  final availableUsers = waitingSnapshot.docs
-      .where((doc) => doc.id != uid && !blockedUserIds.contains(doc.id))
-      .toList();
+  final availableUsers = <QueryDocumentSnapshot>[];
+
+  for (final doc in waitingSnapshot.docs) {
+    final strangerUid = doc.id;
+    if (strangerUid == uid) continue;
+    if (blockedUserIds.contains(strangerUid)) continue;
+
+    final blockedMeDoc = await FirebaseFirestore.instance
+        .collection("users")
+        .doc(strangerUid)
+        .collection("blocked_users")
+        .doc(uid)
+        .get();
+
+    if (blockedMeDoc.exists) continue;
+
+    availableUsers.add(doc);
+  }
 
   if (availableUsers.isNotEmpty) {
     final strangerId = availableUsers.first.id;

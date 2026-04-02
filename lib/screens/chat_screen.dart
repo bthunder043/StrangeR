@@ -21,8 +21,11 @@ class _ChatScreenState extends State<ChatScreen> {
   String strangerNickname = "Stranger";
 
   StreamSubscription<DocumentSnapshot>? roomSubscription;
+  StreamSubscription<DocumentSnapshot>? strangerSubscription;
+
   bool leavingChat = false;
   bool strangerDisconnected = false;
+  bool strangerIsOnline = false;
 
   @override
   void initState() {
@@ -46,12 +49,15 @@ class _ChatScreenState extends State<ChatScreen> {
 
     final users = List<String>.from(roomData["users"] ?? []);
 
-    final strangerId = users.firstWhere(
+    final foundStrangerId = users.firstWhere(
       (id) => id != currentUid,
       orElse: () => "",
     );
 
-    if (strangerId.isEmpty) return;
+    if (foundStrangerId.isEmpty) return;
+
+    strangerId = foundStrangerId;
+    listenToStrangerStatus();
 
     final strangerDoc = await FirebaseFirestore.instance
         .collection("users")
@@ -67,13 +73,11 @@ class _ChatScreenState extends State<ChatScreen> {
 
     setState(() {
       strangerNickname = strangerData["nickname"] ?? "Stranger";
+      strangerIsOnline = strangerData["isOnline"] ?? false;
     });
   }
 
   Future<void> blockUser() async {
-    print("block tapped");
-    print("strangerId: $strangerId");
-    print("strangerNickname: $strangerNickname");
     final currentUid = FirebaseAuth.instance.currentUser!.uid;
 
     if (strangerId == null || strangerId!.isEmpty) {
@@ -81,29 +85,29 @@ class _ChatScreenState extends State<ChatScreen> {
       return;
     }
 
-    print("Writing to: users/$currentUid/blocked_users/${strangerId!}");
     try {
-      final ref = FirebaseFirestore.instance
+      if (leavingChat) return;
+      leavingChat = true;
+
+      await FirebaseFirestore.instance
           .collection("users")
           .doc(currentUid)
           .collection("blocked_users")
-          .doc(strangerId);
-
-      await ref.set({
-        "uid": strangerId,
-        "nickname": strangerNickname,
-        "blockedAt": FieldValue.serverTimestamp(),
-      });
+          .doc(strangerId!)
+          .set({
+            "uid": strangerId,
+            "nickname": strangerNickname,
+            "blockedAt": FieldValue.serverTimestamp(),
+          });
 
       await FirebaseFirestore.instance
           .collection("chat_rooms")
           .doc(widget.roomId)
           .update({"isActive": false, "disconnectedBy": currentUid});
 
-      if (!mounted) return;
-
-      Navigator.pop(context, "rematch");
+      await leavetoLobby(rematch: true);
     } catch (e) {
+      leavingChat = false;
       print("Error blocking user: $e");
     }
   }
@@ -132,7 +136,7 @@ class _ChatScreenState extends State<ChatScreen> {
 
           if (!isActive) {
             if (disconnectedBy == uid) {
-              leavetoLobby();
+              leavetoLobby(rematch: true);
             } else {
               if (mounted) {
                 setState(() {
@@ -144,16 +148,37 @@ class _ChatScreenState extends State<ChatScreen> {
         });
   }
 
-  Future<void> leavetoLobby({bool rematch = false}) async {
-    if (leavingChat) return;
-    leavingChat = true;
+  void listenToStrangerStatus() {
+    if (strangerId == null || strangerId!.isEmpty) return;
+    strangerSubscription?.cancel();
 
+    strangerSubscription = FirebaseFirestore.instance
+        .collection("users")
+        .doc(strangerId!)
+        .snapshots()
+        .listen((doc) {
+          if (!doc.exists) return;
+
+          final data = doc.data();
+          if (data == null) return;
+
+          if (!mounted) return;
+
+          setState(() {
+            strangerNickname = data["nickname"] ?? "Stranger";
+            strangerIsOnline = data["isOnline"] ?? false;
+          });
+        });
+  }
+
+  Future<void> leavetoLobby({bool rematch = false}) async {
     if (!mounted) return;
 
     Navigator.pop(context, rematch ? "rematch" : null);
   }
 
   Future<void> sendMessage() async {
+    if (leavingChat || strangerDisconnected) return;
     if (strangerDisconnected) return;
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
@@ -189,6 +214,7 @@ class _ChatScreenState extends State<ChatScreen> {
   @override
   void dispose() {
     roomSubscription?.cancel();
+    strangerSubscription?.cancel();
     messageController.dispose();
     scrollController.dispose();
     super.dispose();
@@ -202,12 +228,23 @@ class _ChatScreenState extends State<ChatScreen> {
       backgroundColor: Color(0xff121212),
       appBar: AppBar(
         backgroundColor: Color(0xff121212),
-        title: Text(strangerNickname, style: TextStyle(color: Colors.white)),
+        title: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(strangerNickname, style: TextStyle(color: Colors.white)),
+            Text(
+              strangerIsOnline ? "Online" : "Offline",
+              style: TextStyle(
+                color: strangerIsOnline ? Colors.green : Colors.grey,
+                fontSize: 12,
+              ),
+            ),
+          ],
+        ),
         actions: [
           IconButton(onPressed: skipStranger, icon: Icon(Icons.skip_next)),
           IconButton(
             onPressed: () {
-              print("BLOCK BUTTON PRESSED");
               blockUser();
             },
             icon: const Icon(Icons.block, color: Colors.red),
@@ -254,8 +291,6 @@ class _ChatScreenState extends State<ChatScreen> {
                   .snapshots(),
 
               builder: (context, snapshot) {
-                print("snapshot error: ${snapshot.error}");
-                print("docs length: ${snapshot.data?.docs.length}");
                 if (snapshot.hasError) {
                   return Center(
                     child: Text(
@@ -343,7 +378,7 @@ class _ChatScreenState extends State<ChatScreen> {
                     child: TextField(
                       style: TextStyle(color: Colors.white),
                       controller: messageController,
-                      enabled: !strangerDisconnected,
+                      enabled: !strangerDisconnected && !leavingChat,
                       decoration: InputDecoration(
                         hintText: strangerDisconnected
                             ? "Chat ended"
@@ -362,7 +397,7 @@ class _ChatScreenState extends State<ChatScreen> {
                     shape: BoxShape.circle,
                   ),
                   child: IconButton(
-                    onPressed: strangerDisconnected ? null : sendMessage,
+                    onPressed: strangerDisconnected || leavingChat ? null : sendMessage,
                     icon: Icon(Icons.send, color: Colors.white),
                   ),
                 ),
