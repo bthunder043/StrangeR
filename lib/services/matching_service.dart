@@ -3,20 +3,47 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
-Future<void> startMatching() async {
+Future<void> deactivateMyActiveRooms() async {
   final user = FirebaseAuth.instance.currentUser;
   if (user == null) return;
 
   final uid = user.uid;
 
-  print("MY UID: $uid");
-
-  final waitingSnapshot = await FirebaseFirestore.instance
-      .collection("waiting_users")
-      .orderBy("joinedAt")
+  final oldRooms = await FirebaseFirestore.instance
+      .collection("chat_rooms")
+      .where("users", arrayContains: uid)
+      .where("isActive", isEqualTo: true)
       .get();
 
-  final blockedSnapshot = await FirebaseFirestore.instance
+  for (final room in oldRooms.docs) {
+    await room.reference.update({"isActive": false, "disconnectedBy": uid});
+  }
+}
+
+Future<void> startMatching() async {
+  final user = FirebaseAuth.instance.currentUser;
+  if (user == null) return;
+
+  final uid = user.uid;
+  print("MY UID: $uid");
+
+  final existingRoom = await FirebaseFirestore.instance
+      .collection("chat_rooms")
+      .where("users", arrayContains: uid)
+      .where("isActive", isEqualTo: true)
+      .limit(1)
+      .get();
+
+  if (existingRoom.docs.isNotEmpty) {
+    print("User already has an active room, skipping matching");
+    return;
+  }
+
+  final db = FirebaseFirestore.instance;
+  final waitingRef = db.collection("waiting_users");
+
+  // get blocked users
+  final blockedSnapshot = await db
       .collection("users")
       .doc(uid)
       .collection("blocked_users")
@@ -24,56 +51,79 @@ Future<void> startMatching() async {
 
   final blockedUserIds = blockedSnapshot.docs.map((doc) => doc.id).toSet();
 
-  final availableUsers = <QueryDocumentSnapshot>[];
+  final waitingSnapshot = await waitingRef
+      .where("matched", isEqualTo: false)
+      .orderBy("joinedAt")
+      .get();
 
   for (final doc in waitingSnapshot.docs) {
-    final strangerUid = doc.id;
-    if (strangerUid == uid) continue;
-    if (blockedUserIds.contains(strangerUid)) continue;
+    final strangerId = doc.id;
 
-    final blockedMeDoc = await FirebaseFirestore.instance
+    if (strangerId == uid) continue;
+    if (blockedUserIds.contains(strangerId)) continue;
+
+    final blockedMeDoc = await db
         .collection("users")
-        .doc(strangerUid)
+        .doc(strangerId)
         .collection("blocked_users")
         .doc(uid)
         .get();
 
     if (blockedMeDoc.exists) continue;
 
-    availableUsers.add(doc);
+    try {
+      await db.runTransaction((transaction) async {
+        final strangerRef = waitingRef.doc(strangerId);
+        final myRef = waitingRef.doc(uid);
+
+        final strangerSnap = await transaction.get(strangerRef);
+
+        if (!strangerSnap.exists) {
+          throw Exception("Stranger disappeared");
+        }
+
+        final data = strangerSnap.data();
+        if (data == null) throw Exception("No data");
+
+        if (data["matched"] == true) {
+          throw Exception("Already matched");
+        }
+
+        // claim stranger
+        transaction.update(strangerRef, {"matched": true});
+
+        // create room
+        final roomRef = db.collection("chat_rooms").doc();
+
+        transaction.set(roomRef, {
+          "users": [uid, strangerId],
+          "createdAt": FieldValue.serverTimestamp(),
+          "isActive": true,
+          "disconnectedBy": null,
+        });
+
+        // remove both from waiting
+        transaction.delete(strangerRef);
+        transaction.delete(myRef);
+
+        print("ROOM CREATED: ${roomRef.id}");
+      });
+
+      // ✅ SUCCESS → stop here
+      return;
+    } catch (e) {
+      print("Transaction failed: $e");
+      continue;
+    }
   }
 
-  if (availableUsers.isNotEmpty) {
-    final strangerId = availableUsers.first.id;
+  // if no match → enter waiting
+  print("No match, adding to waiting");
 
-    print("Match found with: $strangerId");
-
-    final room = await FirebaseFirestore.instance.collection("chat_rooms").add({
-      "users": [uid, strangerId],
-      "createdAt": Timestamp.now(),
-      "isActive": true,
-      "disconnectedBy": null,
-    });
-    print("Created room with ID: ${room.id}");
-
-    await FirebaseFirestore.instance
-        .collection("waiting_users")
-        .doc(strangerId)
-        .delete()
-        .catchError((_) {});
-
-    await FirebaseFirestore.instance
-        .collection("waiting_users")
-        .doc(uid)
-        .delete()
-        .catchError((_) {});
-  } else {
-    print("No match, adding user to waiting list");
-
-    await FirebaseFirestore.instance.collection("waiting_users").doc(uid).set({
-      "joinedAt": FieldValue.serverTimestamp(),
-    });
-  }
+  await waitingRef.doc(uid).set({
+    "joinedAt": FieldValue.serverTimestamp(),
+    "matched": false,
+  });
 }
 
 Future<void> leaveRoom(String roomId) async {

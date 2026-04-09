@@ -21,55 +21,58 @@ class _LobbyScreenState extends State<LobbyScreen> {
   StreamSubscription<QuerySnapshot>? matchSubscription;
   Timer? retryTimer;
 
-  void listenForMatch() {
-    final uid = FirebaseAuth.instance.currentUser!.uid;
+void listenForMatch() {
+  final uid = FirebaseAuth.instance.currentUser!.uid;
 
-    matchSubscription?.cancel();
+  matchSubscription?.cancel();
 
-    matchSubscription = FirebaseFirestore.instance
-        .collection("chat_rooms")
-        .where("isActive", isEqualTo: true)
-        .where("users", arrayContains: uid)
-        .orderBy("createdAt", descending: true)
-        .snapshots()
-        .listen(
-          (snapshot) async {
-            print("Chat room snapshot received: ${snapshot.docs.length}");
+  matchSubscription = FirebaseFirestore.instance
+      .collection("chat_rooms")
+      .where("isActive", isEqualTo: true)
+      .where("users", arrayContains: uid)
+      .orderBy("createdAt", descending: true)
+      .snapshots()
+      .listen(
+        (snapshot) async {
+          print("Chat room snapshot received: ${snapshot.docs.length}");
+
+          if (!mounted) return;
+
+          if (snapshot.docs.isNotEmpty && !hasNavigated && searching) {
+            hasNavigated = true;
+            retryTimer?.cancel();
+
+            setState(() {
+              searching = false;
+            });
+
+            final roomId = snapshot.docs.first.id;
+
+            print("navigating to chat room: $roomId");
+
+            await Future.delayed(const Duration(milliseconds: 500));
 
             if (!mounted) return;
 
-            if (snapshot.docs.isNotEmpty && !hasNavigated && searching) {
-              hasNavigated = true;
-              retryTimer?.cancel();
-              final roomId = snapshot.docs.first.id;
+            final result = await Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => ChatScreen(roomId: roomId)),
+            );
 
-              print("navigating to chat room: $roomId");
+            hasNavigated = false;
 
-              await Future.delayed(const Duration(milliseconds: 500));
+            if (!mounted) return;
 
-              if (!mounted) return;
-
-              final result = await Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => ChatScreen(roomId: roomId)),
-              );
-              hasNavigated = false;
-              if (!mounted) return;
-
-              if (result == "rematch") {
-                startChat();
-              } else {
-                setState(() {
-                  searching = false;
-                });
-              }
+            if (result == "rematch") {
+              startChat();
             }
-          },
-          onError: (error) {
-            print("listenForMatch error: $error");
-          },
-        );
-  }
+          }
+        },
+        onError: (error) {
+          print("listenForMatch error: $error");
+        },
+      );
+}
 
   Future<void> startChat() async {
     if (searching) return;
@@ -79,13 +82,17 @@ class _LobbyScreenState extends State<LobbyScreen> {
       hasNavigated = false;
     });
 
+    await deactivateMyActiveRooms();
+
     listenForMatch();
     await startMatching();
 
     retryTimer?.cancel();
     retryTimer = Timer.periodic(Duration(milliseconds: 700), (_) async {
-      if (!mounted || !searching || hasNavigated) return;
-      retryTimer?.cancel();
+      if (!mounted || !searching || hasNavigated) {
+        retryTimer?.cancel();
+        return;
+      }
     });
 
     await startMatching();
@@ -112,10 +119,10 @@ class _LobbyScreenState extends State<LobbyScreen> {
 
   @override
   void dispose() {
-    super.dispose();
-    PresenceService.setUserOffline();
-    matchSubscription?.cancel();
     retryTimer?.cancel();
+    matchSubscription?.cancel();
+    PresenceService.setUserOffline();
+    super.dispose();
   }
 
   @override

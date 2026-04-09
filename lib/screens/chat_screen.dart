@@ -136,7 +136,10 @@ class _ChatScreenState extends State<ChatScreen> {
 
           if (!isActive) {
             if (disconnectedBy == uid) {
-              leavetoLobby(rematch: true);
+              if (!leavingChat) {
+                leavingChat = true;
+                leavetoLobby(rematch: true);
+              }
             } else {
               if (mounted) {
                 setState(() {
@@ -179,7 +182,6 @@ class _ChatScreenState extends State<ChatScreen> {
 
   Future<void> sendMessage() async {
     if (leavingChat || strangerDisconnected) return;
-    if (strangerDisconnected) return;
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
     final text = messageController.text.trim();
@@ -397,7 +399,9 @@ class _ChatScreenState extends State<ChatScreen> {
                     shape: BoxShape.circle,
                   ),
                   child: IconButton(
-                    onPressed: strangerDisconnected || leavingChat ? null : sendMessage,
+                    onPressed: strangerDisconnected || leavingChat
+                        ? null
+                        : sendMessage,
                     icon: Icon(Icons.send, color: Colors.white),
                   ),
                 ),
