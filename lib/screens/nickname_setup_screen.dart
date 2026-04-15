@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 import 'dart:math';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'lobby_screen.dart';
+import 'package:stranger/screens/main_navigation_screen.dart';
 
 class NicknameSetup extends StatefulWidget {
   const NicknameSetup({super.key});
@@ -139,7 +139,7 @@ class _NicknameSetupState extends State<NicknameSetup> {
                       if (!context.mounted) return;
                       Navigator.pushReplacement(
                         context,
-                        MaterialPageRoute(builder: (context) => LobbyScreen()),
+                        MaterialPageRoute(builder: (context) => MainNavigationScreen()),
                       );
                     } catch (e) {
                       print("Error saving profile: $e");
