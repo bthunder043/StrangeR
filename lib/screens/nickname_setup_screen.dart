@@ -1,3 +1,5 @@
+// ignore_for_file: avoid_print
+
 import 'package:flutter/material.dart';
 import 'dart:math';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -129,12 +131,19 @@ class _NicknameSetupState extends State<NicknameSetup> {
                       );
                       return;
                     }
-                    await saveUserProfile();
-                    if (!context.mounted) return;
-                    Navigator.pushReplacement(
-                      context,
-                      MaterialPageRoute(builder: (context) => LobbyScreen()),
-                    );
+                    try {
+                      print("continue pressed");
+                      await saveUserProfile();
+                      print("profile saved");
+
+                      if (!context.mounted) return;
+                      Navigator.pushReplacement(
+                        context,
+                        MaterialPageRoute(builder: (context) => LobbyScreen()),
+                      );
+                    } catch (e) {
+                      print("Error saving profile: $e");
+                    }
                   },
                   child: Text("Continue"),
                 ),

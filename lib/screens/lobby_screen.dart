@@ -4,6 +4,7 @@ import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:stranger/screens/chat_list_screen.dart';
 import 'package:stranger/services/presence_service.dart';
 import '../services/matching_service.dart';
 import 'chat_screen.dart';
@@ -21,58 +22,58 @@ class _LobbyScreenState extends State<LobbyScreen> {
   StreamSubscription<QuerySnapshot>? matchSubscription;
   Timer? retryTimer;
 
-void listenForMatch() {
-  final uid = FirebaseAuth.instance.currentUser!.uid;
+  void listenForMatch() {
+    final uid = FirebaseAuth.instance.currentUser!.uid;
 
-  matchSubscription?.cancel();
+    matchSubscription?.cancel();
 
-  matchSubscription = FirebaseFirestore.instance
-      .collection("chat_rooms")
-      .where("isActive", isEqualTo: true)
-      .where("users", arrayContains: uid)
-      .orderBy("createdAt", descending: true)
-      .snapshots()
-      .listen(
-        (snapshot) async {
-          print("Chat room snapshot received: ${snapshot.docs.length}");
-
-          if (!mounted) return;
-
-          if (snapshot.docs.isNotEmpty && !hasNavigated && searching) {
-            hasNavigated = true;
-            retryTimer?.cancel();
-
-            setState(() {
-              searching = false;
-            });
-
-            final roomId = snapshot.docs.first.id;
-
-            print("navigating to chat room: $roomId");
-
-            await Future.delayed(const Duration(milliseconds: 500));
+    matchSubscription = FirebaseFirestore.instance
+        .collection("chat_rooms")
+        .where("isActive", isEqualTo: true)
+        .where("users", arrayContains: uid)
+        .orderBy("createdAt", descending: true)
+        .snapshots()
+        .listen(
+          (snapshot) async {
+            print("Chat room snapshot received: ${snapshot.docs.length}");
 
             if (!mounted) return;
 
-            final result = await Navigator.push(
-              context,
-              MaterialPageRoute(builder: (_) => ChatScreen(roomId: roomId)),
-            );
+            if (snapshot.docs.isNotEmpty && !hasNavigated && searching) {
+              hasNavigated = true;
+              retryTimer?.cancel();
 
-            hasNavigated = false;
+              setState(() {
+                searching = false;
+              });
 
-            if (!mounted) return;
+              final roomId = snapshot.docs.first.id;
 
-            if (result == "rematch") {
-              startChat();
+              print("navigating to chat room: $roomId");
+
+              await Future.delayed(const Duration(milliseconds: 500));
+
+              if (!mounted) return;
+
+              final result = await Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => ChatScreen(roomId: roomId)),
+              );
+
+              hasNavigated = false;
+
+              if (!mounted) return;
+
+              if (result == "rematch") {
+                startChat();
+              }
             }
-          }
-        },
-        onError: (error) {
-          print("listenForMatch error: $error");
-        },
-      );
-}
+          },
+          onError: (error) {
+            print("listenForMatch error: $error");
+          },
+        );
+  }
 
   Future<void> startChat() async {
     if (searching) return;
@@ -151,6 +152,18 @@ void listenForMatch() {
             ],
           ),
         ),
+        actions: [
+          IconButton(
+            tooltip: "Chats",
+            icon: Icon(Icons.history, color: Colors.white),
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => ChatListScreen()),
+              );
+            },
+          ),
+        ],
       ),
 
       body: Center(

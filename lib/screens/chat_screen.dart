@@ -19,6 +19,16 @@ class _ChatScreenState extends State<ChatScreen> {
 
   String? strangerId;
   String strangerNickname = "Stranger";
+  String formatTime(dynamic timestamp) {
+    if (timestamp == null) return "";
+
+    final date = (timestamp as Timestamp).toDate();
+    final hour = date.hour % 12 == 0 ? 12 : date.hour % 12;
+    final minute = date.minute.toString().padLeft(2, '0');
+    final period = date.hour >= 12 ? "PM" : "AM";
+
+    return "$hour:$minute $period";
+  }
 
   StreamSubscription<DocumentSnapshot>? roomSubscription;
   StreamSubscription<DocumentSnapshot>? strangerSubscription;
@@ -197,6 +207,14 @@ class _ChatScreenState extends State<ChatScreen> {
           "createdAt": FieldValue.serverTimestamp(),
         });
 
+    await FirebaseFirestore.instance
+        .collection("chat_rooms")
+        .doc(widget.roomId)
+        .update({
+          "lastMessage": text,
+          "lastMessageTime": FieldValue.serverTimestamp(),
+        });
+
     messageController.clear();
   }
 
@@ -350,9 +368,30 @@ class _ChatScreenState extends State<ChatScreen> {
                               bottomRight: Radius.circular(isMe ? 4 : 16),
                             ),
                           ),
-                          child: Text(
-                            msg["text"],
-                            style: TextStyle(color: Colors.white, fontSize: 15),
+                          child: Column(
+                            crossAxisAlignment: isMe
+                                ? CrossAxisAlignment.end
+                                : CrossAxisAlignment.start,
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                msg["text"] ?? "",
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 15,
+                                ),
+                              ),
+
+                              SizedBox(height: 4),
+
+                              Text(
+                                formatTime(msg["createdAt"]),
+                                style: TextStyle(
+                                  color: Colors.grey.shade300,
+                                  fontSize: 10,
+                                ),
+                              ),
+                            ],
                           ),
                         ),
                       ),
