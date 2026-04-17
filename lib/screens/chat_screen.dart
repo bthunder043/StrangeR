@@ -1,5 +1,3 @@
-// ignore_for_file: avoid_print
-
 import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -30,18 +28,41 @@ class _ChatScreenState extends State<ChatScreen> {
     return "$hour:$minute $period";
   }
 
+  String getStatusText() {
+    if (strangerIsOnline) {
+      return "Online";
+    }
+    if (strangerLastSeen == null) {
+      return "Offline";
+    }
+    final lastSeenTime = strangerLastSeen!.toDate();
+    final difference = DateTime.now().difference(lastSeenTime);
+
+    if (difference.inSeconds < 60) {
+      return "Last seen just now";
+    } else if (difference.inMinutes < 60) {
+      return "Last seen ${difference.inMinutes}mins ago";
+    } else if (difference.inHours < 24) {
+      return "Last seen ${difference.inHours}hrs ago";
+    } else {
+      return "Last seen ${lastSeenTime.day}/${lastSeenTime.month}";
+    }
+  }
+
   StreamSubscription<DocumentSnapshot>? roomSubscription;
   StreamSubscription<DocumentSnapshot>? strangerSubscription;
 
   bool leavingChat = false;
   bool strangerDisconnected = false;
   bool strangerIsOnline = false;
+  Timestamp? strangerLastSeen;
 
   @override
   void initState() {
     super.initState();
     listenToRoomStatus();
     loadStrangerNickname();
+    resetUnreadCount();
   }
 
   Future<void> loadStrangerNickname() async {
@@ -84,6 +105,7 @@ class _ChatScreenState extends State<ChatScreen> {
     setState(() {
       strangerNickname = strangerData["nickname"] ?? "Stranger";
       strangerIsOnline = strangerData["isOnline"] ?? false;
+      strangerLastSeen = strangerData["lastSeen"];
     });
   }
 
@@ -91,7 +113,7 @@ class _ChatScreenState extends State<ChatScreen> {
     final currentUid = FirebaseAuth.instance.currentUser!.uid;
 
     if (strangerId == null || strangerId!.isEmpty) {
-      print("block failed: stranger is null or empty");
+      // print("block failed: stranger is null or empty");
       return;
     }
 
@@ -118,8 +140,19 @@ class _ChatScreenState extends State<ChatScreen> {
       await leavetoLobby(rematch: true);
     } catch (e) {
       leavingChat = false;
-      print("Error blocking user: $e");
+      // print("Error blocking user: $e");
     }
+  }
+
+  Future<void> resetUnreadCount() async {
+    final uid = FirebaseAuth.instance.currentUser!.uid;
+
+    await FirebaseFirestore.instance
+        .collection("chat_rooms")
+        .doc(widget.roomId)
+        .set({
+          "unreadCounts": {uid: 0},
+        }, SetOptions(merge: true));
   }
 
   void listenToRoomStatus() {
@@ -180,6 +213,7 @@ class _ChatScreenState extends State<ChatScreen> {
           setState(() {
             strangerNickname = data["nickname"] ?? "Stranger";
             strangerIsOnline = data["isOnline"] ?? false;
+            strangerLastSeen = data["lastSeen"];
           });
         });
   }
@@ -196,24 +230,23 @@ class _ChatScreenState extends State<ChatScreen> {
     if (user == null) return;
     final text = messageController.text.trim();
     if (text.isEmpty) return;
+    if (strangerId == null || strangerId!.isEmpty) return;
 
-    await FirebaseFirestore.instance
+    final roomRef = FirebaseFirestore.instance
         .collection("chat_rooms")
-        .doc(widget.roomId)
-        .collection("messages")
-        .add({
-          "text": text,
-          "sender": user.uid,
-          "createdAt": FieldValue.serverTimestamp(),
-        });
+        .doc(widget.roomId);
 
-    await FirebaseFirestore.instance
-        .collection("chat_rooms")
-        .doc(widget.roomId)
-        .update({
-          "lastMessage": text,
-          "lastMessageTime": FieldValue.serverTimestamp(),
-        });
+    await roomRef.collection("messages").add({
+      "text": text,
+      "sender": user.uid,
+      "createdAt": FieldValue.serverTimestamp(),
+    });
+
+    await roomRef.set({
+      "lastMessage": text,
+      "lastMessageTime": FieldValue.serverTimestamp(),
+      "unreadCounts": {user.uid: 0, strangerId!: FieldValue.increment(1)},
+    }, SetOptions(merge: true));
 
     messageController.clear();
   }
@@ -251,9 +284,12 @@ class _ChatScreenState extends State<ChatScreen> {
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(strangerNickname, style: TextStyle(color: Colors.white)),
             Text(
-              strangerIsOnline ? "Online" : "Offline",
+              strangerNickname,
+              style: TextStyle(color: Colors.white, fontSize: 18),
+            ),
+            Text(
+              getStatusText(),
               style: TextStyle(
                 color: strangerIsOnline ? Colors.green : Colors.grey,
                 fontSize: 12,
@@ -262,12 +298,12 @@ class _ChatScreenState extends State<ChatScreen> {
           ],
         ),
         actions: [
-          IconButton(onPressed: skipStranger, icon: Icon(Icons.skip_next)),
+          IconButton(onPressed: skipStranger, icon: Icon(Icons.skip_next_rounded)),
           IconButton(
             onPressed: () {
               blockUser();
             },
-            icon: const Icon(Icons.block, color: Colors.red),
+            icon: Icon(Icons.block_rounded, color: Colors.red),
           ),
         ],
       ),
@@ -388,7 +424,7 @@ class _ChatScreenState extends State<ChatScreen> {
                                 formatTime(msg["createdAt"]),
                                 style: TextStyle(
                                   color: Colors.grey.shade300,
-                                  fontSize: 10,
+                                  fontSize: 12,
                                 ),
                               ),
                             ],
@@ -413,7 +449,7 @@ class _ChatScreenState extends State<ChatScreen> {
                     padding: EdgeInsets.symmetric(horizontal: 14),
                     decoration: BoxDecoration(
                       color: Color(0xff1e1e1e),
-                      borderRadius: BorderRadius.circular(24),
+                      borderRadius: BorderRadius.circular(50),
                       border: Border.all(color: Color(0xff2a2a40)),
                     ),
                     child: TextField(
@@ -441,7 +477,7 @@ class _ChatScreenState extends State<ChatScreen> {
                     onPressed: strangerDisconnected || leavingChat
                         ? null
                         : sendMessage,
-                    icon: Icon(Icons.send, color: Colors.white),
+                    icon: Icon(Icons.send_rounded, color: Colors.white),
                   ),
                 ),
               ],

@@ -4,13 +4,12 @@ import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
-import 'package:stranger/screens/chat_list_screen.dart';
 import 'package:stranger/services/presence_service.dart';
 import '../services/matching_service.dart';
 import 'chat_screen.dart';
 
 class LobbyScreen extends StatefulWidget {
-  const LobbyScreen({super.key});
+   const LobbyScreen({super.key});
 
   @override
   State<LobbyScreen> createState() => _LobbyScreenState();
@@ -19,6 +18,7 @@ class LobbyScreen extends StatefulWidget {
 class _LobbyScreenState extends State<LobbyScreen> {
   bool searching = false;
   bool hasNavigated = false;
+
   StreamSubscription<QuerySnapshot>? matchSubscription;
   Timer? retryTimer;
 
@@ -35,8 +35,6 @@ class _LobbyScreenState extends State<LobbyScreen> {
         .snapshots()
         .listen(
           (snapshot) async {
-            print("Chat room snapshot received: ${snapshot.docs.length}");
-
             if (!mounted) return;
 
             if (snapshot.docs.isNotEmpty && !hasNavigated && searching) {
@@ -48,21 +46,22 @@ class _LobbyScreenState extends State<LobbyScreen> {
               });
 
               final roomId = snapshot.docs.first.id;
-
               print("navigating to chat room: $roomId");
 
-              await Future.delayed(const Duration(milliseconds: 500));
+              await Future.delayed( Duration(milliseconds: 300));
 
               if (!mounted) return;
 
               final result = await Navigator.push(
                 context,
-                MaterialPageRoute(builder: (_) => ChatScreen(roomId: roomId)),
+                MaterialPageRoute(
+                  builder: (_) => ChatScreen(roomId: roomId),
+                ),
               );
 
-              hasNavigated = false;
-
               if (!mounted) return;
+
+              hasNavigated = false;
 
               if (result == "rematch") {
                 startChat();
@@ -89,14 +88,14 @@ class _LobbyScreenState extends State<LobbyScreen> {
     await startMatching();
 
     retryTimer?.cancel();
-    retryTimer = Timer.periodic(Duration(milliseconds: 700), (_) async {
+    retryTimer = Timer.periodic( Duration(milliseconds: 700), (_) async {
       if (!mounted || !searching || hasNavigated) {
         retryTimer?.cancel();
         return;
       }
-    });
 
-    await startMatching();
+      await startMatching();
+    });
   }
 
   Future<void> cancelSearch() async {
@@ -129,21 +128,23 @@ class _LobbyScreenState extends State<LobbyScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Color(0xff121212),
+      backgroundColor:  Color(0xff121212),
       appBar: AppBar(
-        backgroundColor: Color(0xff121212),
+        backgroundColor:  Color(0xff121212),
         elevation: 0,
+        centerTitle: false,
         title: RichText(
           text: TextSpan(
             style: TextStyle(
+              fontFamily: 'Inter',
               fontSize: 28,
-              fontWeight: FontWeight.bold,
-              letterSpacing: 1.2,
+              fontWeight: FontWeight.w700,
+              letterSpacing: 0.4,
             ),
             children: [
               TextSpan(
                 text: "Strange",
-                style: TextStyle(color: Colors.grey),
+                style: TextStyle(color: Colors.white),
               ),
               TextSpan(
                 text: "R",
@@ -152,65 +153,138 @@ class _LobbyScreenState extends State<LobbyScreen> {
             ],
           ),
         ),
-        actions: [
-          IconButton(
-            tooltip: "Chats",
-            icon: Icon(Icons.history, color: Colors.white),
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => ChatListScreen()),
-              );
-            },
-          ),
-        ],
       ),
-
-      body: Center(
-        child: searching
-            ? Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  CircularProgressIndicator(color: Color(0xff6c63ff)),
-                  SizedBox(height: 20),
-
-                  Text(
-                    "Searching for a stranger...",
-                    style: TextStyle(fontSize: 18, color: Colors.white),
-                  ),
-                ],
-              )
-            : Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-
-                children: [
-                  Icon(Icons.chat, size: 80, color: Colors.white),
-
-                  SizedBox(height: 20),
-
-                  Text(
-                    "Start talking to a stranger",
-                    style: TextStyle(fontSize: 22, color: Colors.white),
-                  ),
-
-                  SizedBox(height: 40),
-
-                  ElevatedButton(
-                    onPressed: startChat,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Color(0xff6c63ff),
-                      padding: EdgeInsets.symmetric(
-                        horizontal: 40,
-                        vertical: 16,
+      body: SafeArea(
+        child: SingleChildScrollView(
+          child: ConstrainedBox(
+            constraints: BoxConstraints(
+              minHeight: MediaQuery.of(context).size.height -
+                  kToolbarHeight -
+                  MediaQuery.of(context).padding.top -
+                  MediaQuery.of(context).padding.bottom,
+            ),
+            child: Center(
+              child: searching
+                  ? Padding(
+                      padding:  EdgeInsets.symmetric(horizontal: 24),
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                           SizedBox(height: 8),
+                          Container(
+                            padding:  EdgeInsets.all(18),
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              color:  Color(
+                                0xff6c63ff,
+                              ).withValues(alpha: 0.10),
+                              border: Border.all(
+                                color:  Color(
+                                  0xff6c63ff,
+                                ).withValues(alpha: 0.18),
+                              ),
+                            ),
+                            child:  SizedBox(
+                              width: 34,
+                              height: 34,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 3,
+                                color: Color(0xff6c63ff),
+                              ),
+                            ),
+                          ),
+                           SizedBox(height: 24),
+                           Text(
+                            "Searching for a stranger...",
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              fontSize: 20,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.white,
+                            ),
+                          ),
+                           SizedBox(height: 8),
+                          Text(
+                            "Please wait while we find someone for you.",
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              fontSize: 14,
+                              color: Colors.grey.shade400,
+                              fontWeight: FontWeight.w400,
+                            ),
+                          ),
+                           SizedBox(height: 24),
+                          TextButton(
+                            onPressed: cancelSearch,
+                            child:  Text(
+                              "Cancel",
+                              style: TextStyle(
+                                fontSize: 15,
+                                fontWeight: FontWeight.w500,
+                                color: Color(0xff6c63ff),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    )
+                  : Padding(
+                      padding:  EdgeInsets.symmetric(horizontal: 24),
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Container(
+                            width: 110,
+                            height: 110,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              color: Colors.white.withValues(alpha: 0.04),
+                              border: Border.all(
+                                color: Colors.white.withValues(alpha: 0.06),
+                              ),
+                            ),
+                            child:  Icon(
+                              Icons.chat_bubble_rounded,
+                              size: 50,
+                              color: Colors.white,
+                            ),
+                          ),
+                           SizedBox(height: 28),
+                           Text(
+                            "Start talking to a stranger",
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              fontSize: 24,
+                              fontWeight: FontWeight.w700,
+                              color: Colors.white,
+                              height: 1.2,
+                            ),
+                          ),
+                           SizedBox(height: 10),
+                          Text(
+                            "Connect instantly and chat anonymously in real time.",
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              fontSize: 14,
+                              height: 1.4,
+                              color: Colors.grey.shade400,
+                              fontWeight: FontWeight.w400,
+                            ),
+                          ),
+                           SizedBox(height: 30),
+                          SizedBox(
+                            width: 220,
+                            child: ElevatedButton(
+                              onPressed: startChat,
+                              child:  Text("Start chat"),
+                            ),
+                          ),
+                        ],
                       ),
                     ),
-                    child: Text(
-                      "Start chat",
-                      style: TextStyle(fontSize: 18, color: Colors.white),
-                    ),
-                  ),
-                ],
-              ),
+            ),
+          ),
+        ),
       ),
     );
   }

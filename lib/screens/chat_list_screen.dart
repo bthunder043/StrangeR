@@ -18,7 +18,10 @@ class ChatListScreen extends StatelessWidget {
         date.day == now.day && date.month == now.month && date.year == now.year;
 
     if (isToday) {
-      return "${date.hour % 12 == 0 ? 12 : date.hour % 12}:${date.minute.toString().padLeft(2, '0')} ${date.hour >= 12 ? 'PM' : 'AM'}";
+      final hour = date.hour % 12 == 0 ? 12 : date.hour % 12;
+      final minute = date.minute.toString().padLeft(2, '0');
+      final period = date.hour >= 12 ? 'PM' : 'AM';
+      return "$hour:$minute $period";
     } else {
       return "${date.day}/${date.month}";
     }
@@ -29,10 +32,18 @@ class ChatListScreen extends StatelessWidget {
     final uid = FirebaseAuth.instance.currentUser!.uid;
 
     return Scaffold(
-      backgroundColor: const Color(0xff121212),
+      backgroundColor:  Color(0xff121212),
       appBar: AppBar(
-        backgroundColor: const Color(0xff121212),
-        title: const Text("Chats", style: TextStyle(color: Colors.white)),
+        backgroundColor:  Color(0xff121212),
+        elevation: 0,
+        title: Text(
+          "Chats",
+          style: TextStyle(
+            color: Colors.white,
+            fontSize: 24,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
       ),
       body: StreamBuilder<QuerySnapshot>(
         stream: FirebaseFirestore.instance
@@ -41,32 +52,69 @@ class ChatListScreen extends StatelessWidget {
             .orderBy("lastMessageTime", descending: true)
             .snapshots(),
         builder: (context, snapshot) {
-          print("chat list state: ${snapshot.connectionState}");
-          print("chat list hasData: ${snapshot.hasData}");
-          print("chat list error: ${snapshot.error}");
-
           if (snapshot.hasError) {
             return Center(
               child: Text(
                 "Error: ${snapshot.error}",
-                style: const TextStyle(color: Colors.white),
+                style:  TextStyle(color: Colors.white),
               ),
             );
           }
 
           if (!snapshot.hasData) {
-            return const Center(
-              child: CircularProgressIndicator(color: Color(0xff6c63ff)),
+            return  Center(
+              child: CircularProgressIndicator(
+                color: Color(0xff6c63ff),
+              ),
             );
           }
 
           final chats = snapshot.data!.docs;
 
           if (chats.isEmpty) {
-            return const Center(
-              child: Text(
-                "No chats yet",
-                style: TextStyle(color: Colors.white),
+            return Center(
+              child: Padding(
+                padding:  EdgeInsets.symmetric(horizontal: 32),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Container(
+                      width: 90,
+                      height: 90,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: Colors.white.withValues(alpha: 0.04),
+                        border: Border.all(
+                          color: Colors.white.withValues(alpha: 0.06),
+                        ),
+                      ),
+                      child:  Icon(
+                        Icons.chat_bubble_outline_rounded,
+                        size: 40,
+                        color: Colors.white,
+                      ),
+                    ),
+                     SizedBox(height: 20),
+                     Text(
+                      "No chats yet",
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 22,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                     SizedBox(height: 8),
+                    Text(
+                      "Your recent conversations will appear here.",
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        color: Colors.grey.shade400,
+                        fontSize: 14,
+                        height: 1.4,
+                      ),
+                    ),
+                  ],
+                ),
               ),
             );
           }
@@ -79,6 +127,7 @@ class ChatListScreen extends StatelessWidget {
               (id) => id != uid,
               orElse: () => "",
             );
+
             if (strangerId.isEmpty) continue;
 
             uniqueChats.putIfAbsent(strangerId, () => chat);
@@ -86,8 +135,10 @@ class ChatListScreen extends StatelessWidget {
 
           final uniqueChatList = uniqueChats.values.toList();
 
-          return ListView.builder(
+          return ListView.separated(
+            padding:  EdgeInsets.fromLTRB(16, 14, 16, 120),
             itemCount: uniqueChatList.length,
+            separatorBuilder: (_, _) =>  SizedBox(height: 12),
             itemBuilder: (context, index) {
               final chat = uniqueChatList[index];
               final users = List<String>.from(chat["users"] ?? []);
@@ -98,8 +149,12 @@ class ChatListScreen extends StatelessWidget {
               );
 
               if (strangerId.isEmpty) {
-                return const SizedBox.shrink();
+                return  SizedBox.shrink();
               }
+
+              final unreadCounts =
+                  (chat["unreadCounts"] as Map<String, dynamic>?) ?? {};
+              final unread = unreadCounts[uid] ?? 0;
 
               return FutureBuilder<DocumentSnapshot>(
                 future: FirebaseFirestore.instance
@@ -108,51 +163,18 @@ class ChatListScreen extends StatelessWidget {
                     .get(),
                 builder: (context, userSnapshot) {
                   String nickname = "Stranger";
-
-                  if (userSnapshot.connectionState == ConnectionState.waiting) {
-                    // 👇 STILL RETURN A CLICKABLE TILE
-                    return ListTile(
-                      title: const Text(
-                        "Loading...",
-                        style: TextStyle(color: Colors.white),
-                      ),
-                      onTap: () {
-                        print("Tapped chat: ${chat.id}");
-
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => ChatScreen(roomId: chat.id),
-                          ),
-                        );
-                      },
-                    );
-                  }
+                  bool isOnline = false;
 
                   if (userSnapshot.hasData && userSnapshot.data!.exists) {
                     final data =
                         userSnapshot.data!.data() as Map<String, dynamic>?;
                     nickname = data?["nickname"] ?? "Stranger";
+                    isOnline = data?["isOnline"] ?? false;
                   }
 
-                  return ListTile(
-                    title: Text(
-                      nickname,
-                      style: const TextStyle(color: Colors.white),
-                    ),
-                    subtitle: Text(
-                      chat["lastMessage"] ?? "",
-                      style: const TextStyle(color: Colors.grey),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    trailing: Text(
-                      formatTime(chat["lastMessageTime"]),
-                      style: const TextStyle(color: Colors.grey, fontSize: 12),
-                    ),
+                  return InkWell(
+                    borderRadius: BorderRadius.circular(22),
                     onTap: () {
-                      print("Tapped chat: ${chat.id}");
-
                       Navigator.push(
                         context,
                         MaterialPageRoute(
@@ -160,6 +182,122 @@ class ChatListScreen extends StatelessWidget {
                         ),
                       );
                     },
+                    child: Container(
+                      padding:  EdgeInsets.all(14),
+                      decoration: BoxDecoration(
+                        color:  Color(0xff1b1b1b),
+                        borderRadius: BorderRadius.circular(22),
+                        border: Border.all(
+                          color: Colors.white.withValues(alpha: 0.06),
+                        ),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withValues(alpha: 0.18),
+                            blurRadius: 18,
+                            offset:  Offset(0, 8),
+                          ),
+                        ],
+                      ),
+                      child: Row(
+                        children: [
+                          Stack(
+                            children: [
+                              CircleAvatar(
+                                radius: 26,
+                                backgroundColor:  Color(0xff2a2a40),
+                                child: Text(
+                                  nickname.isNotEmpty
+                                      ? nickname[0].toUpperCase()
+                                      : "?",
+                                  style:  TextStyle(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                              ),
+                              Positioned(
+                                right: 0,
+                                bottom: 0,
+                                child: Container(
+                                  width: 12,
+                                  height: 12,
+                                  decoration: BoxDecoration(
+                                    color: isOnline
+                                        ? Colors.green
+                                        : Colors.grey.shade600,
+                                    shape: BoxShape.circle,
+                                    border: Border.all(
+                                      color:  Color(0xff1b1b1b),
+                                      width: 2,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                           SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  nickname,
+                                  style:  TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                                 SizedBox(height: 4),
+                                Text(
+                                  chat["lastMessage"] ?? "",
+                                  style:  TextStyle(
+                                    color: Colors.grey,
+                                    fontSize: 13,
+                                  ),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ],
+                            ),
+                          ),
+                           SizedBox(width: 12),
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.end,
+                            children: [
+                              Text(
+                                formatTime(chat["lastMessageTime"]),
+                                style:  TextStyle(
+                                  color: Colors.grey,
+                                  fontSize: 11,
+                                ),
+                              ),
+                               SizedBox(height: 8),
+                              unread > 0
+                                  ? Container(
+                                      padding:  EdgeInsets.symmetric(
+                                        horizontal: 8,
+                                        vertical: 4,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color:  Color(0xff6c63ff),
+                                        borderRadius: BorderRadius.circular(20),
+                                      ),
+                                      child: Text(
+                                        unread.toString(),
+                                        style:  TextStyle(
+                                          color: Colors.white,
+                                          fontSize: 11,
+                                          fontWeight: FontWeight.w700,
+                                        ),
+                                      ),
+                                    )
+                                  :  SizedBox(height: 22),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
                   );
                 },
               );

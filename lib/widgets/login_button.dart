@@ -18,9 +18,6 @@ class LoginButton extends StatelessWidget {
       width: double.infinity,
       child: ElevatedButton(
         onPressed: onTap,
-        style: ElevatedButton.styleFrom(
-          padding: EdgeInsets.symmetric(vertical: 16),
-        ),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [Icon(icon), SizedBox(width: 10), Text(text)],

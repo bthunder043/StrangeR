@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:stranger/screens/chat_list_screen.dart';
 import 'package:stranger/screens/lobby_screen.dart';
 import 'package:stranger/screens/settings_screen.dart';
+import 'package:stranger/services/presence_service.dart';
 
 class MainNavigationScreen extends StatefulWidget {
   const MainNavigationScreen({super.key});
@@ -11,14 +12,47 @@ class MainNavigationScreen extends StatefulWidget {
   State<MainNavigationScreen> createState() => _MainNavigationScreenState();
 }
 
-class _MainNavigationScreenState extends State<MainNavigationScreen> {
+class _MainNavigationScreenState extends State<MainNavigationScreen>
+    with WidgetsBindingObserver {
   int currentIndex = 0;
 
-  final List<Widget> pages = [
-    LobbyScreen(),
-    ChatListScreen(),
-    SettingsScreen()
-  ];
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    PresenceService.setUserOnline();
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    PresenceService.setUserOffline();
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      PresenceService.setUserOnline();
+    } else if (state == AppLifecycleState.paused ||
+        state == AppLifecycleState.inactive ||
+        state == AppLifecycleState.detached) {
+      PresenceService.setUserOffline();
+    }
+  }
+
+  Widget _buildPage() {
+    switch (currentIndex) {
+      case 0:
+        return LobbyScreen();
+      case 1:
+        return ChatListScreen();
+      case 2:
+        return SettingsScreen();
+      default:
+        return LobbyScreen();
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -26,7 +60,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
       backgroundColor: Color(0xff121212),
       body: Stack(
         children: [
-          IndexedStack(index: currentIndex, children: pages),
+          _buildPage(),
           Positioned(
             left: 16,
             right: 16,

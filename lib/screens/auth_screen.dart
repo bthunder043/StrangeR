@@ -23,14 +23,15 @@ class AuthScreen extends StatelessWidget {
               RichText(
                 text: TextSpan(
                   style: TextStyle(
-                    fontSize: 36,
-                    fontWeight: FontWeight.bold,
-                    letterSpacing: 1.2,
+                    fontFamily: 'Inter',
+                    fontSize: 28,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 0.4,
                   ),
                   children: [
                     TextSpan(
                       text: "Strange",
-                      style: TextStyle(color: Colors.grey),
+                      style: TextStyle(color: Colors.white),
                     ),
                     TextSpan(
                       text: "R",
@@ -43,7 +44,7 @@ class AuthScreen extends StatelessWidget {
               SizedBox(height: 10),
 
               Text(
-                "Talk to someone who doesn't know you",
+                "Talk to someone who doesn't know you.",
                 style: TextStyle(
                   fontSize: 16,
                   color: Colors.grey.shade400,
